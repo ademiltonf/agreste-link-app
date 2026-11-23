@@ -7,6 +7,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -15,6 +16,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
@@ -24,6 +26,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var puxar: SwipeRefreshLayout
     private val appUrl = BuildConfig.APP_URL
     private val appHost = Uri.parse(BuildConfig.APP_URL).host
+
+    // seletor de arquivos (foto / PDF) usado pelo chat
+    private var arquivosCallback: ValueCallback<Array<Uri>>? = null
+    private val escolherArquivo = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val uris = WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)
+        arquivosCallback?.onReceiveValue(uris)
+        arquivosCallback = null
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +59,29 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString AgresteLinkApp/${BuildConfig.VERSION_NAME}"
         }
         web.setBackgroundColor(0xFFF4F7FB.toInt())
-        web.webChromeClient = WebChromeClient()
+        web.webChromeClient = object : WebChromeClient() {
+            override fun onShowFileChooser(
+                view: WebView,
+                callback: ValueCallback<Array<Uri>>,
+                params: FileChooserParams
+            ): Boolean {
+                arquivosCallback?.onReceiveValue(null)
+                arquivosCallback = callback
+                val pegar = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "application/pdf"))
+                }
+                return try {
+                    escolherArquivo.launch(Intent.createChooser(pegar, "Enviar foto ou PDF"))
+                    true
+                } catch (e: ActivityNotFoundException) {
+                    arquivosCallback = null
+                    Toast.makeText(this@MainActivity, "Não encontrei um app de arquivos.", Toast.LENGTH_SHORT).show()
+                    false
+                }
+            }
+        }
         web.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, req: WebResourceRequest): Boolean {
                 val uri = req.url
