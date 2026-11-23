@@ -1,0 +1,43 @@
+name: Gerar APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compilar APK
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: 1.0.${{ github.run_number }}
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Renomear
+        run: cp app/build/outputs/apk/release/app-release.apk AgresteLink-1.0.${{ github.run_number }}.apk
+
+      - name: Publicar para baixar no celular
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Agreste Link 1.0.${{ github.run_number }}
+          body: "Toque no arquivo .apk abaixo para baixar e instalar no celular."
+          files: AgresteLink-1.0.${{ github.run_number }}.apk

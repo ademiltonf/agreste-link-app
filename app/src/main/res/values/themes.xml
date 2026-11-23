@@ -1,0 +1,10 @@
+<resources>
+    <style name="Tema" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">#0577B8</item>
+        <item name="colorPrimaryDark">#0577B8</item>
+        <item name="colorAccent">#FF7300</item>
+        <item name="android:statusBarColor">#0577B8</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowBackground">#F4F7FB</item>
+    </style>
+</resources>
