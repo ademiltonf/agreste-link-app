@@ -1,12 +1,15 @@
 package br.com.agrestelink.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -35,7 +38,28 @@ class MainActivity : AppCompatActivity() {
         arquivosCallback = null
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    // permissão de notificação (Android 13+)
+    private val pedirNotif = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    /** Ponte com a página: o app web avisa a sessão e em qual tela o cliente está. */
+    inner class Ponte {
+        @JavascriptInterface fun sessao(token: String?) {
+            Avisos.salvarSessao(applicationContext, (token ?: "").trim())
+        }
+        @JavascriptInterface fun tela(nome: String?) {
+            Avisos.telaAtual = nome ?: ""
+            if (Avisos.telaAtual == "chat") Avisos.limpar(applicationContext)
+        }
+        @JavascriptInterface fun pedirPermissao() {
+            if (Build.VERSION.SDK_INT < 33 || Avisos.podeNotificar(applicationContext)) return
+            val p = getSharedPreferences("avisos", MODE_PRIVATE)
+            if (p.getBoolean("ja_pediu", false)) return
+            p.edit().putBoolean("ja_pediu", true).apply()
+            runOnUiThread { pedirNotif.launch(Manifest.permission.POST_NOTIFICATIONS) }
+        }
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -59,6 +83,9 @@ class MainActivity : AppCompatActivity() {
             userAgentString = "$userAgentString AgresteLinkApp/${BuildConfig.VERSION_NAME}"
         }
         web.setBackgroundColor(0xFFF4F7FB.toInt())
+        web.addJavascriptInterface(Ponte(), "AgresteAndroid")
+        Avisos.criarCanal(this)
+        Avisos.agendar(this)
         web.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 view: WebView,
@@ -116,7 +143,20 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        if (savedInstanceState != null) web.restoreState(savedInstanceState) else web.loadUrl(appUrl)
+        when {
+            intent?.getStringExtra(Avisos.EXTRA_ABRIR) == "chat" -> web.loadUrl(appUrl + "#/chat")
+            savedInstanceState != null -> web.restoreState(savedInstanceState)
+            else -> web.loadUrl(appUrl)
+        }
+    }
+
+    // tocou na notificação com o app já aberto
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getStringExtra(Avisos.EXTRA_ABRIR) == "chat") {
+            Avisos.limpar(this)
+            web.evaluateJavascript("location.hash='#/chat'", null)
+        }
     }
 
     private fun abrirFora(uri: Uri) {
@@ -141,6 +181,12 @@ class MainActivity : AppCompatActivity() {
         web.saveState(outState)
     }
 
-    override fun onResume() { super.onResume(); web.onResume() }
-    override fun onPause() { web.onPause(); super.onPause() }
+    override fun onResume() {
+        super.onResume(); web.onResume()
+        Avisos.appVisivel = true
+        if (Avisos.telaAtual == "chat") Avisos.limpar(this)
+    }
+    override fun onPause() { web.onPause(); Avisos.appVisivel = false; super.onPause() }
+    // saiu do app: começa a conferir mensagens novas em 1 minuto
+    override fun onStop() { super.onStop(); Avisos.conferirEm(this, 1) }
 }
