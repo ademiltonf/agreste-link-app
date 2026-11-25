@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.webkit.GeolocationPermissions
 import android.webkit.JavascriptInterface
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -21,6 +22,11 @@ import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import android.content.pm.PackageManager
+import android.provider.MediaStore
+import java.io.File
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 class MainActivity : AppCompatActivity() {
@@ -32,10 +38,24 @@ class MainActivity : AppCompatActivity() {
 
     // seletor de arquivos (foto / PDF) usado pelo chat
     private var arquivosCallback: ValueCallback<Array<Uri>>? = null
+    private var fotoCamera: Uri? = null
     private val escolherArquivo = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val uris = WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)
+        var uris = WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data)
+        // foto tirada pela câmera: vem no arquivo que criamos, não no "data"
+        if ((uris == null || uris.isEmpty()) && r.resultCode == RESULT_OK && fotoCamera != null) uris = arrayOf(fotoCamera!!)
         arquivosCallback?.onReceiveValue(uris)
         arquivosCallback = null
+        fotoCamera = null
+    }
+
+    // GPS: o app pede a permissão e depois libera para a página (Finalizar OS)
+    private var gpsOrigem: String? = null
+    private var gpsCallback: GeolocationPermissions.Callback? = null
+    private val pedirGps = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { r ->
+        val ok = r.values.any { it }
+        gpsCallback?.invoke(gpsOrigem, ok, false)
+        if (!ok) Toast.makeText(this, "Sem permissão de localização não dá para fixar o endereço do cliente.", Toast.LENGTH_LONG).show()
+        gpsCallback = null
     }
 
     // permissão de notificação (Android 13+)
@@ -86,7 +106,15 @@ class MainActivity : AppCompatActivity() {
         web.addJavascriptInterface(Ponte(), "AgresteAndroid")
         Avisos.criarCanal(this)
         Avisos.agendar(this)
+        web.settings.setGeolocationEnabled(true)
         web.webChromeClient = object : WebChromeClient() {
+            override fun onGeolocationPermissionsShowPrompt(origin: String, callback: GeolocationPermissions.Callback) {
+                val temPermissao = ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                if (temPermissao) { callback.invoke(origin, true, false); return }
+                gpsOrigem = origin; gpsCallback = callback
+                pedirGps.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+            }
+
             override fun onShowFileChooser(
                 view: WebView,
                 callback: ValueCallback<Array<Uri>>,
@@ -99,8 +127,22 @@ class MainActivity : AppCompatActivity() {
                     type = "*/*"
                     putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "application/pdf"))
                 }
+                // câmera: tira a foto direto (Finalizar OS)
+                val camera = try {
+                    val pasta = File(cacheDir, "fotos").apply { mkdirs() }
+                    val arq = File(pasta, "foto_${System.currentTimeMillis()}.jpg")
+                    fotoCamera = FileProvider.getUriForFile(this@MainActivity, "${packageName}.arquivos", arq)
+                    Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
+                        putExtra(MediaStore.EXTRA_OUTPUT, fotoCamera)
+                        addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                } catch (e: Exception) { fotoCamera = null; null }
+                val soCamera = params.isCaptureEnabled && camera != null
                 return try {
-                    escolherArquivo.launch(Intent.createChooser(pegar, "Enviar foto ou PDF"))
+                    if (soCamera) escolherArquivo.launch(camera!!)
+                    else escolherArquivo.launch(Intent.createChooser(pegar, "Enviar foto ou PDF").apply {
+                        if (camera != null) putExtra(Intent.EXTRA_INITIAL_INTENTS, arrayOf(camera))
+                    })
                     true
                 } catch (e: ActivityNotFoundException) {
                     arquivosCallback = null
