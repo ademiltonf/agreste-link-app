@@ -125,6 +125,30 @@ object Avisos {
         try { NotificationManagerCompat.from(ctx).notify(ID_NOTIF, n) } catch (_: SecurityException) {}
     }
 
+    /** Aviso "Técnico a caminho" (App Técnicos → app do cliente). */
+    fun mostrarTecnico(ctx: Context, titulo: String, texto: String) {
+        if (!podeNotificar(ctx)) return
+        criarCanal(ctx)
+        val abrir = Intent(ctx, MainActivity::class.java).apply {
+            putExtra(EXTRA_ABRIR, "tecnico")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val pi = PendingIntent.getActivity(ctx, 2, abrir, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val n = NotificationCompat.Builder(ctx, CANAL)
+            .setSmallIcon(R.drawable.ic_notificacao)
+            .setColor(0xFFFF7300.toInt())
+            .setContentTitle("$titulo · Agreste Link")
+            .setContentText(texto)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(texto))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pi)
+            .build()
+        try { NotificationManagerCompat.from(ctx).notify(ID_NOTIF + 1, n) } catch (_: SecurityException) {}
+    }
+    fun ultimoTecnico(ctx: Context) = prefs(ctx).getLong("ultimo_tec", 0)
+    fun marcarTecnico(ctx: Context, id: Long) = prefs(ctx).edit().putLong("ultimo_tec", id).apply()
+
     fun limpar(ctx: Context) = NotificationManagerCompat.from(ctx).cancel(ID_NOTIF)
 
     fun guardarAtiva(ctx: Context, v: Boolean) = prefs(ctx).edit().putBoolean("ativa", v).apply()
@@ -152,6 +176,14 @@ class ChecarMensagens(ctx: Context, params: WorkerParameters) : Worker(ctx, para
             val r = JSONObject(con.inputStream.bufferedReader().use { it.readText() })
             ativa = r.optBoolean("ativa")
             Avisos.guardarAtiva(ctx, ativa)
+            val aviso = r.optJSONObject("aviso")
+            if (aviso != null) {
+                val idA = aviso.optLong("id")
+                if (idA > Avisos.ultimoTecnico(ctx)) {
+                    Avisos.mostrarTecnico(ctx, aviso.optString("titulo", "Técnico a caminho"), aviso.optString("texto", "O técnico está a caminho."))
+                    Avisos.marcarTecnico(ctx, idA)
+                }
+            }
             val naoLidas = r.optInt("naoLidas")
             val ultima = r.optJSONObject("ultima")
             if (naoLidas > 0 && ultima != null) {

@@ -145,6 +145,7 @@ class MainActivity : AppCompatActivity() {
 
         when {
             intent?.getStringExtra(Avisos.EXTRA_ABRIR) == "chat" -> web.loadUrl(appUrl + "#/chat")
+            intent?.getStringExtra(Avisos.EXTRA_ABRIR) == "tecnico" -> web.loadUrl(appUrl + "#/tecnico")
             savedInstanceState != null -> web.restoreState(savedInstanceState)
             else -> web.loadUrl(appUrl)
         }
@@ -157,6 +158,7 @@ class MainActivity : AppCompatActivity() {
             Avisos.limpar(this)
             web.evaluateJavascript("location.hash='#/chat'", null)
         }
+        if (intent.getStringExtra(Avisos.EXTRA_ABRIR) == "tecnico") web.evaluateJavascript("location.hash='#/tecnico'", null)
     }
 
     private fun abrirFora(uri: Uri) {
