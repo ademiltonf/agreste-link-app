@@ -31,15 +31,19 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: 1.0.${{ github.run_number }}
-        run: gradle :app:assembleRelease --no-daemon
+        run: gradle :app:assembleRelease :tecnico:assembleRelease --no-daemon
 
       - name: Renomear
-        run: cp app/build/outputs/apk/release/app-release.apk AgresteLink-1.0.${{ github.run_number }}.apk
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk AgresteLink-1.0.${{ github.run_number }}.apk
+          cp tecnico/build/outputs/apk/release/tecnico-release.apk AgresteTecnico-1.0.${{ github.run_number }}.apk
 
       - name: Publicar para baixar no celular
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: Agreste Link 1.0.${{ github.run_number }}
-          body: "Toque no arquivo .apk abaixo para baixar e instalar no celular."
-          files: AgresteLink-1.0.${{ github.run_number }}.apk
+          body: "AgresteLink = app do CLIENTE. AgresteTecnico = app dos TÉCNICOS. Toque no arquivo .apk para baixar e instalar no celular."
+          files: |
+            AgresteLink-1.0.${{ github.run_number }}.apk
+            AgresteTecnico-1.0.${{ github.run_number }}.apk
