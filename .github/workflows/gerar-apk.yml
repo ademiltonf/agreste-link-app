@@ -10,6 +10,7 @@ permissions:
 
 env:
   APP_VERSAO: "1.5"   # versão que aparece no Android (Configurações → Apps)
+  CLUBE_VERSAO: "1.0" # versão do app Clube de Benefícios
 
 jobs:
   apk:
@@ -34,19 +35,22 @@ jobs:
         env:
           VERSION_CODE: ${{ github.run_number }}
           VERSION_NAME: ${{ env.APP_VERSAO }}
-        run: gradle :app:assembleRelease :tecnico:assembleRelease --no-daemon
+          CLUBE_VERSION_NAME: ${{ env.CLUBE_VERSAO }}
+        run: gradle :app:assembleRelease :tecnico:assembleRelease :clube:assembleRelease --no-daemon
 
       - name: Renomear
         run: |
           cp app/build/outputs/apk/release/app-release.apk AgresteLink-v${{ env.APP_VERSAO }}.apk
           cp tecnico/build/outputs/apk/release/tecnico-release.apk AgresteTecnico-v${{ env.APP_VERSAO }}.apk
+          cp clube/build/outputs/apk/release/clube-release.apk ClubeAgreste-v${{ env.CLUBE_VERSAO }}.apk
 
       - name: Publicar para baixar no celular
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ env.APP_VERSAO }}-build${{ github.run_number }}
           name: Agreste Link v${{ env.APP_VERSAO }}
-          body: "AgresteLink = app do CLIENTE. AgresteTecnico = app dos TÉCNICOS. Toque no arquivo .apk para baixar e instalar no celular."
+          body: "AgresteLink = app do CLIENTE. AgresteTecnico = app dos TÉCNICOS. ClubeAgreste = Clube de Benefícios. Toque no arquivo .apk para baixar e instalar no celular."
           files: |
             AgresteLink-v${{ env.APP_VERSAO }}.apk
             AgresteTecnico-v${{ env.APP_VERSAO }}.apk
+            ClubeAgreste-v${{ env.CLUBE_VERSAO }}.apk

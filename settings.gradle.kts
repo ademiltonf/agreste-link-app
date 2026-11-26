@@ -8,3 +8,4 @@ dependencyResolutionManagement {
 rootProject.name = "AgresteLink"
 include(":app")
 include(":tecnico")
+include(":clube")
