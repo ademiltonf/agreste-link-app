@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  APP_VERSAO: "1.5"   # versão que aparece no Android (Configurações → Apps)
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -30,20 +33,20 @@ jobs:
       - name: Compilar APK
         env:
           VERSION_CODE: ${{ github.run_number }}
-          VERSION_NAME: 1.0.${{ github.run_number }}
+          VERSION_NAME: ${{ env.APP_VERSAO }}
         run: gradle :app:assembleRelease :tecnico:assembleRelease --no-daemon
 
       - name: Renomear
         run: |
-          cp app/build/outputs/apk/release/app-release.apk AgresteLink-1.0.${{ github.run_number }}.apk
-          cp tecnico/build/outputs/apk/release/tecnico-release.apk AgresteTecnico-1.0.${{ github.run_number }}.apk
+          cp app/build/outputs/apk/release/app-release.apk AgresteLink-v${{ env.APP_VERSAO }}.apk
+          cp tecnico/build/outputs/apk/release/tecnico-release.apk AgresteTecnico-v${{ env.APP_VERSAO }}.apk
 
       - name: Publicar para baixar no celular
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: Agreste Link 1.0.${{ github.run_number }}
+          tag_name: v${{ env.APP_VERSAO }}-build${{ github.run_number }}
+          name: Agreste Link v${{ env.APP_VERSAO }}
           body: "AgresteLink = app do CLIENTE. AgresteTecnico = app dos TÉCNICOS. Toque no arquivo .apk para baixar e instalar no celular."
           files: |
-            AgresteLink-1.0.${{ github.run_number }}.apk
-            AgresteTecnico-1.0.${{ github.run_number }}.apk
+            AgresteLink-v${{ env.APP_VERSAO }}.apk
+            AgresteTecnico-v${{ env.APP_VERSAO }}.apk
